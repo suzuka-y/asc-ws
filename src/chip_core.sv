@@ -12,10 +12,10 @@ module chip_core #(
     inout  wire VDD,
     inout  wire VSS,
     `endif
-    
+
     input  wire clk,       // clock
     input  wire rst_n,     // reset (active low)
-    
+
     input  wire [NUM_INPUT_PADS-1:0] input_in,   // Input value
     output wire [NUM_INPUT_PADS-1:0] input_pu,   // Pull-up
     output wire [NUM_INPUT_PADS-1:0] input_pd,   // Pull-down
@@ -29,73 +29,77 @@ module chip_core #(
     output wire [NUM_BIDIR_PADS-1:0] bidir_pu,   // Pull-up
     output wire [NUM_BIDIR_PADS-1:0] bidir_pd,   // Pull-down
 
-    inout  wire [NUM_ANALOG_PADS-1:0] analog  // Analog
+    inout  wire [NUM_ANALOG_PADS-1:0] analog      // Analog
 );
 
-    // See here for usage: https://gf180mcu-pdk.readthedocs.io/en/latest/IPs/IO/gf180mcu_fd_io/digital.html
-    
-    // Disable pull-up and pull-down for input
+    // ------------------------------------------------------------------
+    // ASC v0.4 core
+    // ------------------------------------------------------------------
+    wire        asc_pclk;
+    wire        asc_hsync;
+    wire        asc_vsync;
+    wire        asc_de;
+    wire [23:0] asc_rgb;
+    wire [3:0]  asc_debug;
+
+    asc_core i_asc_core (
+        .clk     (clk),
+        .reset_n (rst_n),
+        .pclk    (asc_pclk),
+        .hsync   (asc_hsync),
+        .vsync   (asc_vsync),
+        .de      (asc_de),
+        .rgb     (asc_rgb),
+        .debug   (asc_debug)
+    );
+
+    // ASC does not use the dedicated general-purpose input pads.
     assign input_pu = '0;
     assign input_pd = '0;
 
-    // Set the bidir as output
-    assign bidir_oe = '1;
+    // ------------------------------------------------------------------
+    // wafer.space bidirectional pad mapping
+    //
+    // bidir[0]     : PCLK
+    // bidir[1]     : HSYNC
+    // bidir[2]     : VSYNC
+    // bidir[3]     : DE
+    // bidir[27:4]  : RGB[23:0]
+    // bidir[31:28] : DEBUG[3:0]
+    // bidir[*:32]  : reserved / unused
+    // ------------------------------------------------------------------
+    wire [31:0] asc_output_bus;
+
+    assign asc_output_bus = {
+        asc_debug,
+        asc_rgb,
+        asc_de,
+        asc_vsync,
+        asc_hsync,
+        asc_pclk
+    };
+
+    assign bidir_out = {
+        {(NUM_BIDIR_PADS-32){1'b0}},
+        asc_output_bus
+    };
+
+    // Only the 32 ASC signals are driven. Remaining bidirectional pads are
+    // left in input mode and reserved for future use.
+    assign bidir_oe = {
+        {(NUM_BIDIR_PADS-32){1'b0}},
+        32'hFFFF_FFFF
+    };
+
     assign bidir_cs = '0;
     assign bidir_sl = '0;
     assign bidir_ie = ~bidir_oe;
     assign bidir_pu = '0;
     assign bidir_pd = '0;
-    
-    logic _unused;
-    assign _unused = &bidir_in;
 
-    logic [NUM_BIDIR_PADS-1:0] count;
-
-    always_ff @(posedge clk) begin
-        if (!rst_n) begin
-            count <= '0;
-        end else begin
-            if (&input_in) begin
-                count <= count + 1;
-            end
-        end
-    end
-
-    logic [7:0] sram_0_out;
-
-    `gf180mcu_xxx_ip_sram__sram512x8m8wm1 sram_0 (
-        `ifdef USE_POWER_PINS
-        .VDD  (VDD),
-        .VSS  (VSS),
-        `endif
-
-        .CLK  (clk),
-        .CEN  (1'b1),
-        .GWEN (1'b0),
-        .WEN  (8'b0),
-        .A    ('0),
-        .D    ('0),
-        .Q    (sram_0_out)
-    );
-
-    logic [7:0] sram_1_out;
-
-    `gf180mcu_xxx_ip_sram__sram512x8m8wm1 sram_1 (
-        `ifdef USE_POWER_PINS
-        .VDD  (VDD),
-        .VSS  (VSS),
-        `endif
-
-        .CLK  (clk),
-        .CEN  (1'b1),
-        .GWEN (1'b0),
-        .WEN  (8'b0),
-        .A    ('0),
-        .D    ('0),
-        .Q    (sram_1_out)
-    );
-
-    assign bidir_out = count ^ {24'd0, sram_0_out, sram_1_out};
+    // Consume currently unused digital inputs to avoid unused-signal noise.
+    wire _unused;
+    assign _unused = &{input_in, bidir_in};
 
 endmodule
 

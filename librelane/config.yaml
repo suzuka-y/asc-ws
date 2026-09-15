@@ -32,6 +32,24 @@ DESIGN_NAME: chip_top
 VERILOG_FILES:
 - dir::../src/chip_top.sv
 - dir::../src/chip_core.sv
+- dir::../src/asc/asc_core.v
+- dir::../src/asc/debug_signal_gen.v
+- dir::../src/asc/display_space.v
+- dir::../src/asc/dpi_output.v
+- dir::../src/asc/fade_scaler.v
+- dir::../src/asc/pattern_angular_pinwheel.v
+- dir::../src/asc/pattern_broad_wave_bands.v
+- dir::../src/asc/pattern_diagonal_moire.v
+- dir::../src/asc/pattern_gen.v
+- dir::../src/asc/pattern_hash_mosaic.v
+- dir::../src/asc/pattern_isometric_cubes.v
+- dir::../src/asc/pattern_manhattan_ripple.v
+- dir::../src/asc/pattern_mixer.v
+- dir::../src/asc/pattern_phase_controller.v
+- dir::../src/asc/pattern_pulse_columns.v
+- dir::../src/asc/pattern_truchet_lines.v
+- dir::../src/asc/scene_controller.v
+- dir::../src/asc/timing_generator.v
 
 # Enable plugin for better SystemVerilog support
 # USE_SLANG: True
@@ -64,7 +82,7 @@ IGNORE_DISCONNECTED_MODULES:
 # Clock
 CLOCK_PORT: clk_PAD
 CLOCK_NET: clk_pad/Y
-CLOCK_PERIOD: 40 # 25 MHz
+CLOCK_PERIOD: 30.3030303 # 33 MHz
 
 # Overfix hold violations
 PL_RESIZER_HOLD_SLACK_MARGIN: 0.35
@@ -169,14 +187,14 @@ KLAYOUT_DRC_THREADS: 1
 KLAYOUT_DRC_OPTIONS:
   decks: "all,-antenna,-density,-cup" # disable CUP for now
   variant: ref::$PDK
-  workers: max
+  workers: 2
 
 KLAYOUT_DENSITY_OPTIONS:
   decks: "density"
   variant: ref::$PDK
-  workers: max
+  workers: 2
 
 KLAYOUT_ANTENNA_OPTIONS:
   decks: "antenna"
   variant: ref::$PDK
-  workers: max
+  workers: 2
