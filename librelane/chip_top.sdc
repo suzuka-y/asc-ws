@@ -4,13 +4,11 @@ set_units -time ns
 set clock_port __VIRTUAL_CLK__
 if { [info exists ::env(CLOCK_PORT)] } {
     set port_count [llength $::env(CLOCK_PORT)]
-
     if { $port_count == "0" } {
         puts "\[WARNING] No CLOCK_PORT found. A dummy clock will be used."
     } elseif { $port_count != "1" } {
         puts "\[WARNING] Multi-clock files are not currently supported by the base SDC file. Only the first clock will be constrained."
     }
-
     if { $port_count > "0" } {
         set ::clock_port [lindex $::env(CLOCK_PORT) 0]
     }
@@ -19,7 +17,6 @@ if { [info exists ::env(CLOCK_PORT)] } {
 if { $::env(CLOCK_PORT) == $::env(CLOCK_NET) } {
     set port_args [get_ports $clock_port]
 } else {
-    # This should actually use CLOCK_PIN?
     set port_args [get_pins [lindex $::env(CLOCK_NET) 0]]
 }
 
@@ -42,22 +39,26 @@ if { [info exists ::env(MAX_CAPACITANCE_CONSTRAINT)] } {
 set clocks [get_clocks $clock_port]
 
 # Bidirectional pads
-set clk_core_inout_ports [get_ports { 
+set clk_core_inout_ports [get_ports {
     bidir_PAD[*]
-}] 
-
+}]
 set_input_delay -min 0 -clock $clocks $clk_core_inout_ports
 set_input_delay -max $input_delay_value -clock $clocks $clk_core_inout_ports
 set_output_delay $output_delay_value -clock $clocks $clk_core_inout_ports
 
-# Input-only pads
-set clk_core_input_ports [get_ports { 
-    rst_n_PAD
+# Synchronous input-only pads. rst_n_PAD is intentionally excluded here:
+# ASC v0.41 treats it as an asynchronous raw reset that terminates at the
+# two-stage reset synchronizer, not as ordinary synchronous input data.
+set clk_core_input_ports [get_ports {
     input_PAD[*]
-}] 
-
+}]
 set_input_delay -min 0 -clock $clocks $clk_core_input_ports
 set_input_delay -max $input_delay_value -clock $clocks $clk_core_input_ports
+
+# External reset assertion/deassertion is asynchronous to clk_PAD. The v0.41
+# reset synchronizer contains this asynchronous boundary; downstream logic sees
+# only core_rst_n, whose release is synchronized to the core clock.
+set_false_path -from [get_ports rst_n_PAD]
 
 # Output load
 set cap_load [expr $::env(OUTPUT_CAP_LOAD) / 1000.0]
@@ -79,4 +80,3 @@ if { [info exists ::env(OPENLANE_SDC_IDEAL_CLOCKS)] && $::env(OPENLANE_SDC_IDEAL
 } else {
     set_propagated_clock [all_clocks]
 }
-

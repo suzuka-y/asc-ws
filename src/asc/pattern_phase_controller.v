@@ -9,8 +9,8 @@ module pattern_phase_controller (
     output reg  [8:0] frame_phase
 );
 
-    // Active-low synchronous reset.
-    always @(posedge clk) begin
+    // Active-low reset: async assert, sync deassert via core_rst_n.
+    always @(posedge clk or negedge reset_n) begin
         if (!reset_n)
             frame_phase <= 9'd0;
         else if (frame_tick)

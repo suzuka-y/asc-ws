@@ -36,6 +36,7 @@ VERILOG_FILES:
 - dir::../src/asc/debug_signal_gen.v
 - dir::../src/asc/display_space.v
 - dir::../src/asc/dpi_output.v
+- dir::../src/asc/fade_level_decoder.v
 - dir::../src/asc/fade_scaler.v
 - dir::../src/asc/pattern_angular_pinwheel.v
 - dir::../src/asc/pattern_broad_wave_bands.v
@@ -48,6 +49,7 @@ VERILOG_FILES:
 - dir::../src/asc/pattern_phase_controller.v
 - dir::../src/asc/pattern_pulse_columns.v
 - dir::../src/asc/pattern_truchet_lines.v
+- dir::../src/asc/reset_synchronizer.v
 - dir::../src/asc/scene_controller.v
 - dir::../src/asc/timing_generator.v
 
@@ -92,6 +94,19 @@ GRT_RESIZER_HOLD_SLACK_MARGIN: 0.3
 # logic on your die
 PL_TARGET_DENSITY_PCT: 35
 GRT_ALLOW_CONGESTION: true
+
+# Repair max-slew / max-cap violations after global routing.
+# v0.41 already closes setup/hold timing; this additional repair stage
+# targets the remaining post-route electrical violations using routed RC.
+RUN_POST_GRT_DESIGN_REPAIR: true
+GRT_DESIGN_REPAIR_MAX_SLEW_PCT: 20
+GRT_DESIGN_REPAIR_MAX_CAP_PCT: 20
+
+# Re-optimize setup/hold timing after global routing using routed RC.
+# The setup margin is raised above LibreLane's small default so the
+# resizer also attempts to recover margin from the current ~0.19 ns WNS.
+RUN_POST_GRT_RESIZER_TIMING: true
+GRT_RESIZER_SETUP_SLACK_MARGIN: 0.5
 
 # Allow a larger Y displacement
 PL_MAX_DISPLACEMENT_Y: 200
@@ -181,20 +196,18 @@ KLAYOUT_PROPERTIES: dir::gf180mcu_render.lyp
 # workers * threads should equal the available
 # hardware threads for a best possible utilization.
 
-KLAYOUT_DRC_THREADS: 1
-
 # "max" equals max hardware threads
 KLAYOUT_DRC_OPTIONS:
   decks: "all,-antenna,-density,-cup" # disable CUP for now
   variant: ref::$PDK
-  workers: 2
+  workers: max
 
 KLAYOUT_DENSITY_OPTIONS:
   decks: "density"
   variant: ref::$PDK
-  workers: 2
+  workers: max
 
 KLAYOUT_ANTENNA_OPTIONS:
   decks: "antenna"
   variant: ref::$PDK
-  workers: 2
+  workers: max

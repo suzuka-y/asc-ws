@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 
 // Pattern 7: angular eight-sector pinwheel.
-// ASC v0.4 timing contract: exactly 4 pixel-clock latency.
+// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
 module pattern_angular_pinwheel (
     input  wire        clk,
-    input  wire        reset_n,
     input  wire        logical_valid,
     input  wire [9:0]  logical_x,
     input  wire [9:0]  logical_y,
@@ -28,21 +27,12 @@ module pattern_angular_pinwheel (
     reg [2:0] phase_sector_s1;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s1 <= 1'b0;
-            x_positive_s1 <= 1'b0;
-            y_positive_s1 <= 1'b0;
-            ax_s1 <= 10'd0;
-            ay_s1 <= 10'd0;
-            phase_sector_s1 <= 3'd0;
-        end else begin
-            valid_s1 <= logical_valid;
-            x_positive_s1 <= x_positive_comb;
-            y_positive_s1 <= y_positive_comb;
-            ax_s1 <= ax_comb;
-            ay_s1 <= ay_comb;
-            phase_sector_s1 <= frame_phase[7:5];
-        end
+        valid_s1 <= logical_valid;
+        x_positive_s1 <= x_positive_comb;
+        y_positive_s1 <= y_positive_comb;
+        ax_s1 <= ax_comb;
+        ay_s1 <= ay_comb;
+        phase_sector_s1 <= frame_phase[7:5];
     end
 
     // P7-S2: geometric sector classification.
@@ -67,15 +57,9 @@ module pattern_angular_pinwheel (
     reg [2:0] phase_sector_s2;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s2 <= 1'b0;
-            sector_s2 <= 3'd0;
-            phase_sector_s2 <= 3'd0;
-        end else begin
-            valid_s2 <= valid_s1;
-            sector_s2 <= sector_comb;
-            phase_sector_s2 <= phase_sector_s1;
-        end
+        valid_s2 <= valid_s1;
+        sector_s2 <= sector_comb;
+        phase_sector_s2 <= phase_sector_s1;
     end
 
     // P7-S3: animated palette index.
@@ -83,13 +67,8 @@ module pattern_angular_pinwheel (
     reg [2:0] q7_s3;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s3 <= 1'b0;
-            q7_s3 <= 3'd0;
-        end else begin
-            valid_s3 <= valid_s2;
-            q7_s3 <= sector_s2 + phase_sector_s2;
-        end
+        valid_s3 <= valid_s2;
+        q7_s3 <= sector_s2 + phase_sector_s2;
     end
 
     function [23:0] p7_color;
@@ -110,7 +89,7 @@ module pattern_angular_pinwheel (
 
     // P7-S4: palette lookup / output register.
     always @(posedge clk) begin
-        if (!reset_n || !valid_s3)
+        if (!valid_s3)
             rgb888 <= 24'h000000;
         else
             rgb888 <= p7_color(q7_s3);

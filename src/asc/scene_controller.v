@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Platform-independent ASC v0.3 scene controller.
+// Platform-independent ASC v0.41 scene controller.
 //
 // - One scene lasts 600 frames.
 // - The current scene is represented directly by pattern_mask[7:0].
@@ -52,8 +52,8 @@ module scene_controller (
                                  (candidate_popcount == 4'd4) ? 2'd2 :
                                                                2'd3;
 
-    // Active-low synchronous reset.
-    always @(posedge clk) begin
+    // Active-low reset: async assert, sync deassert via core_rst_n.
+    always @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin
             scene_frame_count <= 10'd0;
             pattern_mask      <= SCENE_SEED;

@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 
 // Pattern 1: sparse isometric cubes.
-// ASC v0.4 timing contract: exactly 4 pixel-clock latency.
+// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
 module pattern_isometric_cubes (
     input  wire        clk,
-    input  wire        reset_n,
     input  wire        logical_valid,
     input  wire [9:0]  logical_x,
     input  wire [9:0]  logical_y,
@@ -26,19 +25,11 @@ module pattern_isometric_cubes (
     reg        row_parity_s1;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s1       <= 1'b0;
-            x_s1           <= 10'd0;
-            phase_s1       <= 9'd0;
-            y_scrolled_s1  <= 11'd0;
-            row_parity_s1  <= 1'b0;
-        end else begin
-            valid_s1       <= logical_valid;
-            x_s1           <= logical_x;
-            phase_s1       <= frame_phase;
-            y_scrolled_s1  <= y_scrolled_comb;
-            row_parity_s1  <= row_parity_comb;
-        end
+        valid_s1       <= logical_valid;
+        x_s1           <= logical_x;
+        phase_s1       <= frame_phase;
+        y_scrolled_s1  <= y_scrolled_comb;
+        row_parity_s1  <= row_parity_comb;
     end
 
     // ------------------------------------------------------------------
@@ -57,17 +48,10 @@ module pattern_isometric_cubes (
     reg [1:0] theme_s2;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s2 <= 1'b0;
-            u_s2     <= 8'd0;
-            v_s2     <= 7'd0;
-            theme_s2 <= 2'd0;
-        end else begin
-            valid_s2 <= valid_s1;
-            u_s2     <= u_comb;
-            v_s2     <= v_comb;
-            theme_s2 <= theme_comb;
-        end
+        valid_s2 <= valid_s1;
+        u_s2     <= u_comb;
+        v_s2     <= v_comb;
+        theme_s2 <= theme_comb;
     end
 
     // ------------------------------------------------------------------
@@ -98,19 +82,11 @@ module pattern_isometric_cubes (
     reg       mask_left_s3;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s3      <= 1'b0;
-            theme_s3      <= 2'd0;
-            mask_top_s3   <= 1'b0;
-            mask_right_s3 <= 1'b0;
-            mask_left_s3  <= 1'b0;
-        end else begin
-            valid_s3      <= valid_s2;
-            theme_s3      <= theme_s2;
-            mask_top_s3   <= mask_top_comb;
-            mask_right_s3 <= mask_right_comb;
-            mask_left_s3  <= mask_left_comb;
-        end
+        valid_s3      <= valid_s2;
+        theme_s3      <= theme_s2;
+        mask_top_s3   <= mask_top_comb;
+        mask_right_s3 <= mask_right_comb;
+        mask_left_s3  <= mask_left_comb;
     end
 
     function [23:0] bg1_color;
@@ -163,9 +139,7 @@ module pattern_isometric_cubes (
 
     // P1-S4: palette selection / output register.
     always @(posedge clk) begin
-        if (!reset_n) begin
-            rgb888 <= 24'h000000;
-        end else if (!valid_s3) begin
+        if (!valid_s3) begin
             rgb888 <= 24'h000000;
         end else if (mask_top_s3) begin
             rgb888 <= top_color(theme_s3);

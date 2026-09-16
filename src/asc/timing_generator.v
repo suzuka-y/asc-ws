@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Platform-independent real-display-space timing generator for ASC v0.4.
+// Platform-independent real-display-space timing generator for ASC v0.41.
 //
 // This block owns the physical raster.  Pattern RTL must not consume h_count,
 // v_count, sync timing, porch timing, or physical_x/physical_y directly.
@@ -36,8 +36,8 @@ module timing_generator (
     localparam integer V_SYNC_START = V_ACTIVE + V_FP;          // 493
     localparam integer V_SYNC_END   = V_ACTIVE + V_FP + V_SYNC; // 496
 
-    // Active-low synchronous reset.
-    always @(posedge clk) begin
+    // Active-low reset: async assert, sync deassert via core_rst_n.
+    always @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin
             h_count <= 10'd0;
             v_count <= 10'd0;

@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 
 // Pattern 8: pulse columns on black background.
-// ASC v0.4 timing contract: exactly 4 pixel-clock latency.
+// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
 module pattern_pulse_columns (
     input  wire        clk,
-    input  wire        reset_n,
     input  wire        logical_valid,
     input  wire [9:0]  logical_x,
     input  wire [9:0]  logical_y,
@@ -27,19 +26,11 @@ module pattern_pulse_columns (
     reg [2:0] q8_color_s1;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s1 <= 1'b0;
-            mx_s1 <= 1'b0;
-            p8_s1 <= 6'd0;
-            y_s1 <= 10'd0;
-            q8_color_s1 <= 3'd0;
-        end else begin
-            valid_s1 <= logical_valid;
-            mx_s1 <= mx_comb;
-            p8_s1 <= p8_comb;
-            y_s1 <= logical_y;
-            q8_color_s1 <= q8_color_comb;
-        end
+        valid_s1 <= logical_valid;
+        mx_s1 <= mx_comb;
+        p8_s1 <= p8_comb;
+        y_s1 <= logical_y;
+        q8_color_s1 <= q8_color_comb;
     end
 
     // P8-S2: triangle height and y threshold.
@@ -57,19 +48,11 @@ module pattern_pulse_columns (
     reg [2:0] q8_color_s2;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s2 <= 1'b0;
-            mx_s2 <= 1'b0;
-            y_s2 <= 10'd0;
-            y_threshold_s2 <= 10'd0;
-            q8_color_s2 <= 3'd0;
-        end else begin
-            valid_s2 <= valid_s1;
-            mx_s2 <= mx_s1;
-            y_s2 <= y_s1;
-            y_threshold_s2 <= y_threshold_comb;
-            q8_color_s2 <= q8_color_s1;
-        end
+        valid_s2 <= valid_s1;
+        mx_s2 <= mx_s1;
+        y_s2 <= y_s1;
+        y_threshold_s2 <= y_threshold_comb;
+        q8_color_s2 <= q8_color_s1;
     end
 
     // P8-S3: final geometry hit decision.
@@ -78,15 +61,9 @@ module pattern_pulse_columns (
     reg [2:0] q8_color_s3;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s3 <= 1'b0;
-            m8_s3 <= 1'b0;
-            q8_color_s3 <= 3'd0;
-        end else begin
-            valid_s3 <= valid_s2;
-            m8_s3 <= mx_s2 && (y_s2 >= y_threshold_s2);
-            q8_color_s3 <= q8_color_s2;
-        end
+        valid_s3 <= valid_s2;
+        m8_s3 <= mx_s2 && (y_s2 >= y_threshold_s2);
+        q8_color_s3 <= q8_color_s2;
     end
 
     function [23:0] pulse_color;
@@ -107,7 +84,7 @@ module pattern_pulse_columns (
 
     // P8-S4: palette lookup / output register.
     always @(posedge clk) begin
-        if (!reset_n || !valid_s3)
+        if (!valid_s3)
             rgb888 <= 24'h000000;
         else if (m8_s3)
             rgb888 <= pulse_color(q8_color_s3);

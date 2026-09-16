@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 
 // Pattern 6: 32x32 square-cell hash mosaic.
-// ASC v0.4 timing contract: exactly 4 pixel-clock latency.
+// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
 module pattern_hash_mosaic (
     input  wire        clk,
-    input  wire        reset_n,
     input  wire        logical_valid,
     input  wire [9:0]  logical_x,
     input  wire [9:0]  logical_y,
@@ -28,17 +27,11 @@ module pattern_hash_mosaic (
     reg        parity_s1;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s1 <= 1'b0;
-            i37_s1 <= 16'd0; j73_s1 <= 16'd0; t29_s1 <= 16'd0;
-            parity_s1 <= 1'b0;
-        end else begin
-            valid_s1 <= logical_valid;
-            i37_s1 <= i37_comb;
-            j73_s1 <= j73_comb;
-            t29_s1 <= t29_comb;
-            parity_s1 <= i[0] ^ j[0];
-        end
+        valid_s1 <= logical_valid;
+        i37_s1 <= i37_comb;
+        j73_s1 <= j73_comb;
+        t29_s1 <= t29_comb;
+        parity_s1 <= i[0] ^ j[0];
     end
 
     // P6-S2: first two hash-mixing operations.
@@ -50,15 +43,9 @@ module pattern_hash_mosaic (
     reg        parity_s2;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s2 <= 1'b0;
-            h1_s2 <= 16'd0;
-            parity_s2 <= 1'b0;
-        end else begin
-            valid_s2 <= valid_s1;
-            h1_s2 <= h1_comb;
-            parity_s2 <= parity_s1;
-        end
+        valid_s2 <= valid_s1;
+        h1_s2 <= h1_comb;
+        parity_s2 <= parity_s1;
     end
 
     // P6-S3: remaining hash mixing and palette index.
@@ -70,13 +57,8 @@ module pattern_hash_mosaic (
     reg [2:0] q6_s3;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s3 <= 1'b0;
-            q6_s3 <= 3'd0;
-        end else begin
-            valid_s3 <= valid_s2;
-            q6_s3 <= q6_comb;
-        end
+        valid_s3 <= valid_s2;
+        q6_s3 <= q6_comb;
     end
 
     function [23:0] vivid8_color;
@@ -97,7 +79,7 @@ module pattern_hash_mosaic (
 
     // P6-S4: palette lookup / output register.
     always @(posedge clk) begin
-        if (!reset_n || !valid_s3)
+        if (!valid_s3)
             rgb888 <= 24'h000000;
         else
             rgb888 <= vivid8_color(q6_s3);

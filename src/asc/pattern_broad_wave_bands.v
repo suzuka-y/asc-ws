@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 
 // Pattern 4: three broad high-saturation wave bands.
-// ASC v0.4 timing contract: exactly 4 pixel-clock latency.
+// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
 module pattern_broad_wave_bands (
     input  wire        clk,
-    input  wire        reset_n,
     input  wire        logical_valid,
     input  wire [9:0]  logical_x,
     input  wire [9:0]  logical_y,
@@ -28,19 +27,11 @@ module pattern_broad_wave_bands (
     reg [1:0] bg_index_s1;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s1 <= 1'b0;
-            r10_s1 <= 8'd0; r11_s1 <= 8'd0; r12_s1 <= 8'd0;
-            r20_s1 <= 7'd0; r21_s1 <= 7'd0; r22_s1 <= 7'd0;
-            y_s1 <= 10'd0;
-            bg_index_s1 <= 2'd0;
-        end else begin
-            valid_s1 <= logical_valid;
-            r10_s1 <= r10_comb; r11_s1 <= r11_comb; r12_s1 <= r12_comb;
-            r20_s1 <= r20_comb; r21_s1 <= r21_comb; r22_s1 <= r22_comb;
-            y_s1 <= logical_y;
-            bg_index_s1 <= logical_y[8:7];
-        end
+        valid_s1 <= logical_valid;
+        r10_s1 <= r10_comb; r11_s1 <= r11_comb; r12_s1 <= r12_comb;
+        r20_s1 <= r20_comb; r21_s1 <= r21_comb; r22_s1 <= r22_comb;
+        y_s1 <= logical_y;
+        bg_index_s1 <= logical_y[8:7];
     end
 
     // P4-S2: triangle waves and resulting band centers.
@@ -68,17 +59,10 @@ module pattern_broad_wave_bands (
     reg [1:0]         bg_index_s2;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s2 <= 1'b0;
-            c0_s2 <= 11'sd0; c1_s2 <= 11'sd0; c2_s2 <= 11'sd0;
-            y_s2 <= 10'd0;
-            bg_index_s2 <= 2'd0;
-        end else begin
-            valid_s2 <= valid_s1;
-            c0_s2 <= c0_comb; c1_s2 <= c1_comb; c2_s2 <= c2_comb;
-            y_s2 <= y_s1;
-            bg_index_s2 <= bg_index_s1;
-        end
+        valid_s2 <= valid_s1;
+        c0_s2 <= c0_comb; c1_s2 <= c1_comb; c2_s2 <= c2_comb;
+        y_s2 <= y_s1;
+        bg_index_s2 <= bg_index_s1;
     end
 
     // P4-S3: distance-to-band comparisons.
@@ -94,17 +78,11 @@ module pattern_broad_wave_bands (
     reg [1:0] bg_index_s3;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s3 <= 1'b0;
-            m0_s3 <= 1'b0; m1_s3 <= 1'b0; m2_s3 <= 1'b0;
-            bg_index_s3 <= 2'd0;
-        end else begin
-            valid_s3 <= valid_s2;
-            m0_s3 <= (ady0 < 11'd42);
-            m1_s3 <= (ady1 < 11'd42);
-            m2_s3 <= (ady2 < 11'd42);
-            bg_index_s3 <= bg_index_s2;
-        end
+        valid_s3 <= valid_s2;
+        m0_s3 <= (ady0 < 11'd42);
+        m1_s3 <= (ady1 < 11'd42);
+        m2_s3 <= (ady2 < 11'd42);
+        bg_index_s3 <= bg_index_s2;
     end
 
     function [23:0] bg4_color;
@@ -121,7 +99,7 @@ module pattern_broad_wave_bands (
 
     // P4-S4: priority color select / output register.
     always @(posedge clk) begin
-        if (!reset_n || !valid_s3)
+        if (!valid_s3)
             rgb888 <= 24'h000000;
         else if (m0_s3)
             rgb888 <= 24'h00D9C7;

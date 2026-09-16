@@ -1,19 +1,11 @@
 `timescale 1ns / 1ps
 
-// ASC v0.4 logical-display-space boundary.
-//
-// Responsibility:
-//   - Accept coordinates from the real/physical raster space.
-//   - Present coordinates to pattern RTL only as logical-space coordinates.
-//   - Form a registered timing boundary before the pattern-computation cone.
-//
-// v0.4 intentionally requires the logical and real display spaces to match.
-// Therefore the mapping is an identity mapping.  Future revisions may change
-// only this boundary when a non-identity mapping is required; pattern RTL must
-// remain independent of the real display timing and output interface.
+// ASC v0.41 logical-display-space boundary.
+// v0.41 keeps the v0.4 identity mapping and one-clock latency.
+// This is a reset-free datapath register stage; output validity is managed
+// globally after the complete 10-clock pipeline fills.
 module display_space (
     input  wire       clk,
-    input  wire       reset_n,
 
     input  wire [9:0] physical_x,
     input  wire [9:0] physical_y,
@@ -24,19 +16,10 @@ module display_space (
     output reg        logical_valid
 );
 
-    // One-pixel-clock register boundary.  This both establishes the ownership
-    // boundary between raster timing and pattern computation and prevents the
-    // physical counters from directly feeding the long pattern logic cone.
     always @(posedge clk) begin
-        if (!reset_n) begin
-            logical_x     <= 10'd0;
-            logical_y     <= 10'd0;
-            logical_valid <= 1'b0;
-        end else begin
-            logical_x     <= physical_x;
-            logical_y     <= physical_y;
-            logical_valid <= physical_valid;
-        end
+        logical_x     <= physical_x;
+        logical_y     <= physical_y;
+        logical_valid <= physical_valid;
     end
 
 endmodule

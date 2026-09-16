@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 
 // Pattern 5: 64x64 Truchet tiles mixing approximate arcs and straight lines.
-// ASC v0.4 timing contract: exactly 4 pixel-clock latency.
+// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
 module pattern_truchet_lines (
     input  wire        clk,
-    input  wire        reset_n,
     input  wire        logical_valid,
     input  wire [9:0]  logical_x,
     input  wire [9:0]  logical_y,
@@ -33,25 +32,14 @@ module pattern_truchet_lines (
     reg [1:0] b5_s1;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s1 <= 1'b0;
-            i_s1 <= 4'd0; j_s1 <= 4'd0;
-            u_s1 <= 6'd0; v_s1 <= 6'd0;
-            t5_s1 <= 5'd0;
-            line_sel_s1 <= 1'b0;
-            o5_s1 <= 2'd0;
-            line_vertical_s1 <= 1'b0;
-            b5_s1 <= 2'd0;
-        end else begin
-            valid_s1 <= logical_valid;
-            i_s1 <= i_comb; j_s1 <= j_comb;
-            u_s1 <= u_comb; v_s1 <= v_comb;
-            t5_s1 <= t5_comb;
-            line_sel_s1 <= line_sel_comb;
-            o5_s1 <= o5_comb;
-            line_vertical_s1 <= line_vertical_comb;
-            b5_s1 <= b5_comb;
-        end
+        valid_s1 <= logical_valid;
+        i_s1 <= i_comb; j_s1 <= j_comb;
+        u_s1 <= u_comb; v_s1 <= v_comb;
+        t5_s1 <= t5_comb;
+        line_sel_s1 <= line_sel_comb;
+        o5_s1 <= o5_comb;
+        line_vertical_s1 <= line_vertical_comb;
+        b5_s1 <= b5_comb;
     end
 
     // P5-S2: local distances and palette-index arithmetic.
@@ -85,24 +73,14 @@ module pattern_truchet_lines (
     reg [1:0] b5_s2;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s2 <= 1'b0;
-            a_s2 <= 6'd0; b_s2 <= 6'd0;
-            h_delta_s2 <= 6'd0; v_delta_s2 <= 6'd0;
-            line_sel_s2 <= 1'b0;
-            line_vertical_s2 <= 1'b0;
-            q5_s2 <= 3'd0;
-            b5_s2 <= 2'd0;
-        end else begin
-            valid_s2 <= valid_s1;
-            a_s2 <= a_comb; b_s2 <= b_comb;
-            h_delta_s2 <= h_delta_comb;
-            v_delta_s2 <= v_delta_comb;
-            line_sel_s2 <= line_sel_s1;
-            line_vertical_s2 <= line_vertical_s1;
-            q5_s2 <= q5_sum_comb[2:0];
-            b5_s2 <= b5_s1;
-        end
+        valid_s2 <= valid_s1;
+        a_s2 <= a_comb; b_s2 <= b_comb;
+        h_delta_s2 <= h_delta_comb;
+        v_delta_s2 <= v_delta_comb;
+        line_sel_s2 <= line_sel_s1;
+        line_vertical_s2 <= line_vertical_s1;
+        q5_s2 <= q5_sum_comb[2:0];
+        b5_s2 <= b5_s1;
     end
 
     // P5-S3: arc/line hit decision.
@@ -122,17 +100,10 @@ module pattern_truchet_lines (
     reg [1:0] b5_s3;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s3 <= 1'b0;
-            m5_s3 <= 1'b0;
-            q5_s3 <= 3'd0;
-            b5_s3 <= 2'd0;
-        end else begin
-            valid_s3 <= valid_s2;
-            m5_s3 <= m5_comb;
-            q5_s3 <= q5_s2;
-            b5_s3 <= b5_s2;
-        end
+        valid_s3 <= valid_s2;
+        m5_s3 <= m5_comb;
+        q5_s3 <= q5_s2;
+        b5_s3 <= b5_s2;
     end
 
     function [23:0] vivid8_color;
@@ -165,7 +136,7 @@ module pattern_truchet_lines (
 
     // P5-S4: palette selection / output register.
     always @(posedge clk) begin
-        if (!reset_n || !valid_s3)
+        if (!valid_s3)
             rgb888 <= 24'h000000;
         else if (m5_s3)
             rgb888 <= vivid8_color(q5_s3);

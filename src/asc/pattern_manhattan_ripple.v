@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 
 // Pattern 2: three thick Manhattan-distance diamond outlines.
-// ASC v0.4 timing contract: exactly 4 pixel-clock latency.
+// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
 module pattern_manhattan_ripple (
     input  wire        clk,
-    input  wire        reset_n,
     input  wire        logical_valid,
     input  wire [9:0]  logical_x,
     input  wire [9:0]  logical_y,
@@ -31,17 +30,10 @@ module pattern_manhattan_ripple (
     reg [9:0] motion_s1;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s1  <= 1'b0;
-            dx_s1     <= 10'd0;
-            dy_s1     <= 10'd0;
-            motion_s1 <= 10'd0;
-        end else begin
-            valid_s1  <= logical_valid;
-            dx_s1     <= dx_comb;
-            dy_s1     <= dy_comb;
-            motion_s1 <= motion_comb;
-        end
+        valid_s1  <= logical_valid;
+        dx_s1     <= dx_comb;
+        dy_s1     <= dy_comb;
+        motion_s1 <= motion_comb;
     end
 
     // P2-S2: Manhattan distance and virtual radii.
@@ -70,19 +62,11 @@ module pattern_manhattan_ripple (
     reg signed [11:0] radius2_s2;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s2  <= 1'b0;
-            d_s2      <= 10'd0;
-            radius0_s2 <= 12'sd0;
-            radius1_s2 <= 12'sd0;
-            radius2_s2 <= 12'sd0;
-        end else begin
-            valid_s2   <= valid_s1;
-            d_s2       <= d_comb;
-            radius0_s2 <= radius0_comb;
-            radius1_s2 <= radius1_comb;
-            radius2_s2 <= radius2_comb;
-        end
+        valid_s2   <= valid_s1;
+        d_s2       <= d_comb;
+        radius0_s2 <= radius0_comb;
+        radius1_s2 <= radius1_comb;
+        radius2_s2 <= radius2_comb;
     end
 
     // P2-S3: outline distance comparisons.
@@ -104,19 +88,11 @@ module pattern_manhattan_ripple (
     reg [1:0] bg_index_s3;
 
     always @(posedge clk) begin
-        if (!reset_n) begin
-            valid_s3    <= 1'b0;
-            m0_s3       <= 1'b0;
-            m1_s3       <= 1'b0;
-            m2_s3       <= 1'b0;
-            bg_index_s3 <= 2'd0;
-        end else begin
-            valid_s3    <= valid_s2;
-            m0_s3       <= (abs_diff0 < 13'd24);
-            m1_s3       <= (abs_diff1 < 13'd24);
-            m2_s3       <= (abs_diff2 < 13'd24);
-            bg_index_s3 <= d_s2[8:7];
-        end
+        valid_s3    <= valid_s2;
+        m0_s3       <= (abs_diff0 < 13'd24);
+        m1_s3       <= (abs_diff1 < 13'd24);
+        m2_s3       <= (abs_diff2 < 13'd24);
+        bg_index_s3 <= d_s2[8:7];
     end
 
     function [23:0] bg2_color;
@@ -133,7 +109,7 @@ module pattern_manhattan_ripple (
 
     // P2-S4: palette selection / output register.
     always @(posedge clk) begin
-        if (!reset_n || !valid_s3)
+        if (!valid_s3)
             rgb888 <= 24'h000000;
         else if (m0_s3)
             rgb888 <= 24'h00D9C7;

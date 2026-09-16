@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
-// Platform-independent logical DPI output block for ASC v0.4.
-// RGB remains RGB888 at the external logical interface.
-// Physical I/O primitives, if ever required, must remain outside asc_core.
+// Platform-independent logical DPI output block for ASC v0.41.
+// PCLK always runs. Until the 10-clock datapath is filled, output_valid keeps
+// DE low, RGB black and syncs inactive-high.
 module dpi_output (
     input  wire        clk,
-    input  wire        reset_n,
+    input  wire        output_valid,
     input  wire        timing_hsync,
     input  wire        timing_vsync,
     input  wire        timing_de,
@@ -19,10 +19,9 @@ module dpi_output (
 );
 
     assign pclk  = clk;
-    assign hsync = timing_hsync;
-    assign vsync = timing_vsync;
-    assign de    = timing_de;
-
-    assign rgb = (reset_n && timing_de) ? pattern_rgb888 : 24'h000000;
+    assign hsync = output_valid ? timing_hsync : 1'b1;
+    assign vsync = output_valid ? timing_vsync : 1'b1;
+    assign de    = output_valid ? timing_de    : 1'b0;
+    assign rgb   = (output_valid && timing_de) ? pattern_rgb888 : 24'h000000;
 
 endmodule

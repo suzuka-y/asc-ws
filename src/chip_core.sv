@@ -14,7 +14,7 @@ module chip_core #(
     `endif
 
     input  wire clk,       // clock
-    input  wire rst_n,     // reset (active low)
+    input  wire rst_n,     // external reset from wafer.space pad (active low)
 
     input  wire [NUM_INPUT_PADS-1:0] input_in,   // Input value
     output wire [NUM_INPUT_PADS-1:0] input_pu,   // Pull-up
@@ -33,7 +33,11 @@ module chip_core #(
 );
 
     // ------------------------------------------------------------------
-    // ASC v0.4 core
+    // ASC v0.41 core
+    //
+    // rst_n is the raw asynchronous reset at the wafer.space/ASC boundary.
+    // asc_core performs async-assert/sync-deassert synchronization internally
+    // and does not distribute rst_n_raw beyond its reset synchronizer.
     // ------------------------------------------------------------------
     wire        asc_pclk;
     wire        asc_hsync;
@@ -43,14 +47,14 @@ module chip_core #(
     wire [3:0]  asc_debug;
 
     asc_core i_asc_core (
-        .clk     (clk),
-        .reset_n (rst_n),
-        .pclk    (asc_pclk),
-        .hsync   (asc_hsync),
-        .vsync   (asc_vsync),
-        .de      (asc_de),
-        .rgb     (asc_rgb),
-        .debug   (asc_debug)
+        .clk       (clk),
+        .rst_n_raw (rst_n),
+        .pclk      (asc_pclk),
+        .hsync     (asc_hsync),
+        .vsync     (asc_vsync),
+        .de        (asc_de),
+        .rgb       (asc_rgb),
+        .debug     (asc_debug)
     );
 
     // ASC does not use the dedicated general-purpose input pads.
