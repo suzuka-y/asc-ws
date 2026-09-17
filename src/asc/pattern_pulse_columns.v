@@ -1,93 +1,91 @@
 `timescale 1ns / 1ps
 
-// Pattern 8: pulse columns on black background.
-// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
+// Pattern 8: pulse columns defined entirely in logical space/time.
 module pattern_pulse_columns (
-    input  wire        clk,
-    input  wire        logical_valid,
-    input  wire [9:0]  logical_x,
-    input  wire [9:0]  logical_y,
-    input  wire [8:0]  frame_phase,
-    output reg  [23:0] rgb888
+    input  wire               clk,
+    input  wire               logical_valid,
+    input  wire signed [15:0] logical_x,
+    input  wire signed [15:0] logical_y,
+    input  wire [23:0]        logical_time,
+    output reg  [23:0]        rgb888
 );
 
-    // P8-S1: column selection, phase and color index.
-    wire [4:0] c_comb = logical_x[9:5];
-    wire [4:0] u_comb = logical_x[4:0];
-    wire mx_comb = (u_comb >= 5'd6) && (u_comb < 5'd26);
-    wire [6:0] three_c_comb = {2'd0, c_comb} + ({2'd0, c_comb} << 1);
-    wire [5:0] p8_comb = frame_phase[5:0] + three_c_comb[5:0];
-    wire [2:0] q8_color_comb = c_comb[2:0] + frame_phase[7:5];
+    // S1: 0.125-unit columns, local x mask, per-column time phase.
+    wire signed [15:0] col_full = $signed(logical_x) >>> 9;
+    wire [7:0] col_comb = col_full[7:0];
+    wire [8:0] local_x_comb = logical_x[8:0];
+    wire x_hit_comb = (local_x_comb >= 9'd96) && (local_x_comb < 9'd416);
+    wire [7:0] three_col = {1'b0, col_comb[6:0]} +
+                           ({1'b0, col_comb[6:0]} << 1);
+    wire [5:0] phase_comb = logical_time[11:6] + three_col[5:0];
+    wire [2:0] color_comb = col_comb[2:0] + logical_time[14:12];
 
-    reg       valid_s1;
-    reg       mx_s1;
-    reg [5:0] p8_s1;
-    reg [9:0] y_s1;
-    reg [2:0] q8_color_s1;
+    reg               valid_s1;
+    reg               x_hit_s1;
+    reg [5:0]         phase_s1;
+    reg signed [15:0] y_s1;
+    reg [2:0]         color_s1;
 
     always @(posedge clk) begin
         valid_s1 <= logical_valid;
-        mx_s1 <= mx_comb;
-        p8_s1 <= p8_comb;
-        y_s1 <= logical_y;
-        q8_color_s1 <= q8_color_comb;
+        x_hit_s1 <= x_hit_comb;
+        phase_s1 <= phase_comb;
+        y_s1     <= logical_y;
+        color_s1 <= color_comb;
     end
 
-    // P8-S2: triangle height and y threshold.
-    wire [6:0] t8_triangle = (p8_s1 <= 6'd32) ?
-                              {1'b0, p8_s1} : (7'd64 - {1'b0, p8_s1});
-    wire [3:0] q8_height = t8_triangle[5:2];
-    wire [9:0] q8_ext = {6'd0, q8_height};
-    wire [9:0] h8_comb = (q8_ext << 6) - (q8_ext << 2);
-    wire [9:0] y_threshold_comb = 10'd480 - h8_comb;
+    // S2: 0..1.0 logical height triangle and bottom-origin threshold.
+    wire [5:0] tri_comb = (phase_s1 <= 6'd32) ? phase_s1 : (6'd64 - phase_s1);
+    wire [12:0] height_comb = {7'd0, tri_comb} << 7; // max 4096 == 1.0
+    wire signed [15:0] threshold_comb = 16'sd4096 - $signed({3'd0, height_comb});
 
-    reg       valid_s2;
-    reg       mx_s2;
-    reg [9:0] y_s2;
-    reg [9:0] y_threshold_s2;
-    reg [2:0] q8_color_s2;
+    reg               valid_s2;
+    reg               x_hit_s2;
+    reg signed [15:0] y_s2;
+    reg signed [15:0] threshold_s2;
+    reg [2:0]         color_s2;
 
     always @(posedge clk) begin
-        valid_s2 <= valid_s1;
-        mx_s2 <= mx_s1;
-        y_s2 <= y_s1;
-        y_threshold_s2 <= y_threshold_comb;
-        q8_color_s2 <= q8_color_s1;
+        valid_s2     <= valid_s1;
+        x_hit_s2     <= x_hit_s1;
+        y_s2         <= y_s1;
+        threshold_s2 <= threshold_comb;
+        color_s2     <= color_s1;
     end
 
-    // P8-S3: final geometry hit decision.
+    // S3: final logical geometry hit.
     reg       valid_s3;
-    reg       m8_s3;
-    reg [2:0] q8_color_s3;
+    reg       hit_s3;
+    reg [2:0] color_s3;
 
     always @(posedge clk) begin
         valid_s3 <= valid_s2;
-        m8_s3 <= mx_s2 && (y_s2 >= y_threshold_s2);
-        q8_color_s3 <= q8_color_s2;
+        hit_s3   <= x_hit_s2 && ($signed(y_s2) >= $signed(threshold_s2));
+        color_s3 <= color_s2;
     end
 
-    function [23:0] pulse_color;
+    function [23:0] vivid8;
         input [2:0] index;
         begin
             case (index)
-                3'd0: pulse_color = 24'h00D9C7;
-                3'd1: pulse_color = 24'h2F6BFF;
-                3'd2: pulse_color = 24'h9B4DFF;
-                3'd3: pulse_color = 24'hFF3D88;
-                3'd4: pulse_color = 24'hFFAE2B;
-                3'd5: pulse_color = 24'h42D65A;
-                3'd6: pulse_color = 24'h00BDEB;
-                default: pulse_color = 24'hE45CFF;
+                3'd0: vivid8 = 24'h00D9C7;
+                3'd1: vivid8 = 24'h2F6BFF;
+                3'd2: vivid8 = 24'h9B4DFF;
+                3'd3: vivid8 = 24'hFF3D88;
+                3'd4: vivid8 = 24'hFFAE2B;
+                3'd5: vivid8 = 24'h42D65A;
+                3'd6: vivid8 = 24'h00BDEB;
+                default: vivid8 = 24'hE45CFF;
             endcase
         end
     endfunction
 
-    // P8-S4: palette lookup / output register.
+    // S4: palette / black background.
     always @(posedge clk) begin
         if (!valid_s3)
             rgb888 <= 24'h000000;
-        else if (m8_s3)
-            rgb888 <= pulse_color(q8_color_s3);
+        else if (hit_s3)
+            rgb888 <= vivid8(color_s3);
         else
             rgb888 <= 24'h000000;
     end

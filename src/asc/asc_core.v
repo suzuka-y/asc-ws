@@ -1,14 +1,10 @@
 `timescale 1ns / 1ps
 
-// Platform-independent ASC v0.41 core.
+// Platform-independent ASC v0.42 core.
 //
-// v0.41 keeps the v0.4 display function and 10-clock pixel latency while
-// refining reset distribution and the two measured timing hot spots.
-//
-// Reset architecture:
-//   rst_n_raw -> 2-FF async-assert/sync-deassert synchronizer -> core_rst_n
-//   core_rst_n is used only by deterministic control/state and output-valid.
-//   Arithmetic/data pipeline registers are intentionally reset-free.
+// Physical profile: 1280x720p60 RGB888 at 74.25 MHz.
+// Pattern space/time: signed Q3.12 logical X/Y + UQ12.12 logical time.
+// Pattern RTL is independent of physical resolution and physical refresh.
 //
 // Fixed pipeline contract:
 //   Display Space : 1 clock
@@ -25,8 +21,7 @@ module asc_core (
     output wire        hsync,
     output wire        vsync,
     output wire        de,
-    output wire [23:0] rgb,
-    output wire [3:0]  debug
+    output wire [23:0] rgb
 );
 
     // ------------------------------------------------------------------
@@ -41,22 +36,17 @@ module asc_core (
     );
 
     // ------------------------------------------------------------------
-    // Real display space / deterministic control state.
+    // Physical display space / deterministic control state.
     // ------------------------------------------------------------------
-    wire [9:0] h_count;
-    wire [9:0] v_count;
-    wire [9:0] physical_x;
-    wire [9:0] physical_y;
-    wire       physical_valid;
-    wire       timing_hsync;
-    wire       timing_vsync;
-    wire       timing_de;
-    wire       frame_tick;
-
-    wire [8:0] frame_phase;
-    wire [9:0] scene_frame_count;
-    wire [7:0] pattern_mask;
-    wire [1:0] mix_shift;
+    wire [10:0] h_count;
+    wire [9:0]  v_count;
+    wire [10:0] physical_x;
+    wire [9:0]  physical_y;
+    wire        physical_valid;
+    wire        timing_hsync;
+    wire        timing_vsync;
+    wire        timing_de;
+    wire        frame_tick;
 
     timing_generator u_timing_generator (
         .clk            (clk),
@@ -72,12 +62,18 @@ module asc_core (
         .frame_tick     (frame_tick)
     );
 
-    pattern_phase_controller u_pattern_phase_controller (
-        .clk         (clk),
-        .reset_n     (core_rst_n),
-        .frame_tick  (frame_tick),
-        .frame_phase (frame_phase)
+    wire [23:0] logical_time;
+
+    logical_time_controller u_logical_time_controller (
+        .clk          (clk),
+        .reset_n      (core_rst_n),
+        .frame_tick   (frame_tick),
+        .logical_time (logical_time)
     );
+
+    wire [9:0] scene_frame_count;
+    wire [7:0] pattern_mask;
+    wire [1:0] mix_shift;
 
     scene_controller u_scene_controller (
         .clk               (clk),
@@ -89,12 +85,11 @@ module asc_core (
     );
 
     // ------------------------------------------------------------------
-    // Reset-free datapath.
-    // DS: real display space -> logical display space (1 clock).
+    // DS: physical pixel -> normalized logical coordinate (1 clock).
     // ------------------------------------------------------------------
-    wire [9:0] logical_x;
-    wire [9:0] logical_y;
-    wire       logical_valid;
+    wire signed [15:0] logical_x;
+    wire signed [15:0] logical_y;
+    wire               logical_valid;
 
     display_space u_display_space (
         .clk            (clk),
@@ -106,22 +101,21 @@ module asc_core (
         .logical_valid  (logical_valid)
     );
 
-    // Sideband state crossing the same display-space boundary.
-    // These are datapath-alignment registers and deliberately have no reset.
-    reg [8:0] frame_phase_ds;
-    reg [7:0] pattern_mask_ds;
-    reg [1:0] mix_shift_ds;
+    // State aligned to the Display Space output sample epoch.
+    // These are reset-free datapath-alignment registers.
+    reg [23:0] logical_time_ds;
+    reg [7:0]  pattern_mask_ds;
+    reg [1:0]  mix_shift_ds;
 
     always @(posedge clk) begin
-        frame_phase_ds  <= frame_phase;
+        logical_time_ds <= logical_time;
         pattern_mask_ds <= pattern_mask;
         mix_shift_ds    <= mix_shift;
     end
 
     // ------------------------------------------------------------------
-    // Fade-level decode is moved ahead of the pixel arithmetic path.
-    // The decoded 4-bit value is delayed nine clocks so it reaches the
-    // one-clock fade stage together with the corresponding mixer pixel.
+    // Fade-level decode is performed at the raw pixel epoch. The decoded
+    // value is delayed nine clocks to meet the corresponding mixer pixel.
     // ------------------------------------------------------------------
     wire [3:0] fade_level_raw;
 
@@ -138,8 +132,7 @@ module asc_core (
     wire [3:0] fade_level_fade = fade_level_pipe9[35:32];
 
     // ------------------------------------------------------------------
-    // P1..P4: pattern bank (4 clocks, one pixel/clock throughput).
-    // Pattern datapath registers are reset-free in v0.41.
+    // P1..P8: four-clock normalized-coordinate/time pattern bank.
     // ------------------------------------------------------------------
     wire [23:0] pattern1_rgb888;
     wire [23:0] pattern2_rgb888;
@@ -155,7 +148,7 @@ module asc_core (
         .logical_valid   (logical_valid),
         .logical_x       (logical_x),
         .logical_y       (logical_y),
-        .frame_phase     (frame_phase_ds),
+        .logical_time    (logical_time_ds),
         .pattern1_rgb888 (pattern1_rgb888),
         .pattern2_rgb888 (pattern2_rgb888),
         .pattern3_rgb888 (pattern3_rgb888),
@@ -166,8 +159,7 @@ module asc_core (
         .pattern8_rgb888 (pattern8_rgb888)
     );
 
-    // pattern_mask / mix_shift must arrive at mixer input with the pattern
-    // RGB values, four clocks after the display-space boundary.
+    // mask/mix_shift meet the pattern RGBs at the mixer input.
     reg [31:0] pattern_mask_pipe4;
     reg [7:0]  mix_shift_pipe4;
 
@@ -180,8 +172,8 @@ module asc_core (
     wire [1:0] mixer_mix_shift    = mix_shift_pipe4[7:6];
 
     // ------------------------------------------------------------------
-    // M1..M4: mixer (4 clocks), reset-free datapath.
-    // M3 registers normalized RGB; M4 performs Gray subtraction.
+    // M1..M4: balanced mixer. M3 normalization and M4 Gray subtraction
+    // remain separated by a mandatory register boundary.
     // ------------------------------------------------------------------
     wire [23:0] mixed_rgb888;
 
@@ -201,7 +193,7 @@ module asc_core (
     );
 
     // ------------------------------------------------------------------
-    // F1: fade scale (1 clock). Level decode has already been completed.
+    // F1: one-clock shift/add fade scaler.
     // ------------------------------------------------------------------
     wire [23:0] faded_rgb888;
 
@@ -213,8 +205,7 @@ module asc_core (
     );
 
     // ------------------------------------------------------------------
-    // Sync/DE sideband pipeline: exact total pixel latency = 10 clocks.
-    // Reset-free: output_valid masks its contents until pipeline fill.
+    // Raw sync/DE aligned to the exact total 10-clock RGB latency.
     // ------------------------------------------------------------------
     reg [9:0] hsync_pipe10;
     reg [9:0] vsync_pipe10;
@@ -226,11 +217,7 @@ module asc_core (
         de_pipe10    <= {de_pipe10[8:0], timing_de};
     end
 
-    // ------------------------------------------------------------------
-    // Pipeline-valid generator. This is control state and is reset.
-    // It becomes High on the same clock at which the first complete 10-clock
-    // pixel result becomes available at the fade output.
-    // ------------------------------------------------------------------
+    // Pipeline fill is deterministic control state and is reset.
     reg [9:0] output_valid_pipe;
 
     always @(posedge clk or negedge core_rst_n) begin
@@ -254,15 +241,6 @@ module asc_core (
         .vsync          (vsync),
         .de             (de),
         .rgb            (rgb)
-    );
-
-    // Debug remains tied to the undelayed real raster for bring-up/STA use.
-    debug_signal_gen u_debug_signal_gen (
-        .reset_n (core_rst_n),
-        .h_count (h_count),
-        .v_count (v_count),
-        .de      (timing_de),
-        .debug   (debug)
     );
 
 endmodule

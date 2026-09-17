@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// ASC v0.41 8-pattern mixer.
+// ASC v0.42 8-pattern mixer.
 // Timing contract: exactly 4 pixel-clock latency.
 //
 //   M1: mask + pair sums

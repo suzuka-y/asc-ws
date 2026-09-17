@@ -20,8 +20,8 @@ sram = os.getenv("SRAM", "gf180mcu_fd_ip_sram")
 slot = os.getenv("SLOT", "1x1")
 
 hdl_toplevel = "chip_top"
-ASC_CLOCK_MHZ = 33.0
-ASC_CLOCK_PERIOD_PS = 30304  # nearest even-ps period for a ~33 MHz 50% duty clock
+ASC_CLOCK_MHZ = 74.25
+ASC_CLOCK_PERIOD_PS = 13468  # nearest even-ps period for ~74.25 MHz (74.250074 MHz)
 
 
 async def set_defaults(dut):
@@ -36,9 +36,9 @@ async def enable_power(dut):
 
 
 async def start_clock(clock):
-    """Start the ASC pixel clock at approximately 33 MHz."""
+    """Start the ASC v0.42 pixel clock at approximately 74.25 MHz."""
     # Clock requires a period that can be represented exactly by simulator
-    # time precision. 30304 ps gives a 50% duty cycle with integer-ps halves.
+    # time precision. 13468 ps gives a 50% duty cycle with integer-ps halves.
     c = Clock(clock, ASC_CLOCK_PERIOD_PS, "ps")
     cocotb.start_soon(c.start())
 
@@ -73,27 +73,27 @@ def pad_bit(dut, index):
 
 @cocotb.test()
 async def test_asc_smoke(dut):
-    """Basic wafer.space integration smoke test for ASC v0.4."""
+    """Basic wafer.space integration smoke test for ASC v0.42."""
 
     logger = logging.getLogger("asc_testbench")
 
-    logger.info("Starting ASC v0.4...")
+    logger.info("Starting ASC v0.42...")
     await start_up(dut)
 
-    # ASC v0.4 has a fixed 10-clock pixel pipeline. Give the pipeline a few
+    # ASC v0.42 has a fixed 10-clock pixel pipeline. Give the pipeline a few
     # extra clocks after reset release before checking the external outputs.
     await ClockCycles(dut.clk_PAD, 16)
 
-    # At the beginning of a frame, HSYNC and VSYNC are inactive-high and DE
-    # is active. These are mapped to bidir_PAD[1], [2], and [3].
-    assert pad_bit(dut, 1) == 1, "HSYNC should be inactive-high after startup"
-    assert pad_bit(dut, 2) == 1, "VSYNC should be inactive-high after startup"
+    # At the beginning of a 720p frame, positive-polarity HSYNC and VSYNC are
+    # inactive-Low and DE is active. These are bidir_PAD[1], [2], and [3].
+    assert pad_bit(dut, 1) == 0, "HSYNC should be inactive-low after startup"
+    assert pad_bit(dut, 2) == 0, "VSYNC should be inactive-low after startup"
     assert pad_bit(dut, 3) == 1, "DE should be active near the start of frame"
 
-    # RGB888 and debug outputs must all resolve to binary values. Avoid reading
+    # RGB888 outputs must all resolve to binary values. Avoid reading
     # the full bidir_PAD vector because unused upper pads are intentionally left
     # in input mode and may therefore be Z in RTL simulation.
-    for index in range(4, 32):
+    for index in range(4, 28):
         pad_bit(dut, index)
 
     # PCLK is mapped to bidir_PAD[0]. Do not compare its phase directly with
@@ -112,7 +112,7 @@ async def test_asc_smoke(dut):
         f"PCLK did not toggle at bidir_PAD[0]; observed states: {pclk_states}"
     )
 
-    logger.info("ASC v0.4 smoke test passed")
+    logger.info("ASC v0.42 smoke test passed")
 
 
 def chip_top_runner():
@@ -143,7 +143,7 @@ def chip_top_runner():
         sources.append(proj_path / "../src/chip_top.sv")
         sources.append(proj_path / "../src/chip_core.sv")
 
-        # ASC v0.4 RTL source files.
+        # ASC v0.42 RTL source files.
         sources.extend(sorted((proj_path / "../src/asc").glob("*.v")))
 
     sources += [

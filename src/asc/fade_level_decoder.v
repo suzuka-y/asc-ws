@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// ASC v0.41 fade-level decoder.
+// ASC v0.42 fade-level decoder.
 // Decode is intentionally performed before the RGB fade stage so the
 // comparator chain is removed from the fade-scaling critical path.
 module fade_level_decoder (

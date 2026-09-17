@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Platform-independent ASC v0.41 scene controller.
+// Platform-independent ASC v0.42 scene controller.
 //
 // - One scene lasts 600 frames.
 // - The current scene is represented directly by pattern_mask[7:0].

@@ -47,7 +47,7 @@ set_input_delay -max $input_delay_value -clock $clocks $clk_core_inout_ports
 set_output_delay $output_delay_value -clock $clocks $clk_core_inout_ports
 
 # Synchronous input-only pads. rst_n_PAD is intentionally excluded here:
-# ASC v0.41 treats it as an asynchronous raw reset that terminates at the
+# ASC v0.42 treats it as an asynchronous raw reset that terminates at the
 # two-stage reset synchronizer, not as ordinary synchronous input data.
 set clk_core_input_ports [get_ports {
     input_PAD[*]
@@ -55,7 +55,7 @@ set clk_core_input_ports [get_ports {
 set_input_delay -min 0 -clock $clocks $clk_core_input_ports
 set_input_delay -max $input_delay_value -clock $clocks $clk_core_input_ports
 
-# External reset assertion/deassertion is asynchronous to clk_PAD. The v0.41
+# External reset assertion/deassertion is asynchronous to clk_PAD. The v0.42
 # reset synchronizer contains this asynchronous boundary; downstream logic sees
 # only core_rst_n, whose release is synchronized to the core clock.
 set_false_path -from [get_ports rst_n_PAD]

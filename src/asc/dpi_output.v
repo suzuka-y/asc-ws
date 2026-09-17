@@ -1,8 +1,9 @@
 `timescale 1ns / 1ps
 
-// Platform-independent logical DPI output block for ASC v0.41.
-// PCLK always runs. Until the 10-clock datapath is filled, output_valid keeps
-// DE low, RGB black and syncs inactive-high.
+// ASC v0.42 RGB888 DPI output.
+// PCLK always runs. Before the 10-clock pipeline fills, syncs are held at
+// their inactive level (Low for the positive-polarity 720p profile), DE is
+// Low and RGB is black.
 module dpi_output (
     input  wire        clk,
     input  wire        output_valid,
@@ -19,8 +20,8 @@ module dpi_output (
 );
 
     assign pclk  = clk;
-    assign hsync = output_valid ? timing_hsync : 1'b1;
-    assign vsync = output_valid ? timing_vsync : 1'b1;
+    assign hsync = output_valid ? timing_hsync : 1'b0;
+    assign vsync = output_valid ? timing_vsync : 1'b0;
     assign de    = output_valid ? timing_de    : 1'b0;
     assign rgb   = (output_valid && timing_de) ? pattern_rgb888 : 24'h000000;
 

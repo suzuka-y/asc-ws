@@ -1,129 +1,114 @@
 `timescale 1ns / 1ps
 
-// Pattern 3: water-light warped diagonal moire.
-// ASC v0.41 timing contract: exactly 4 pixel-clock latency.
-//
-// v0.41 redistributes the v0.4 P3-S1 -> P3-S2 critical path:
-//   S1 now performs the temporal triangle, y+time warp triangle,
-//   centering and arithmetic shift.
-//   S2 is reduced primarily to the signed x + warp addition.
-// The arithmetic is unchanged, so the visible result remains bit-exact.
+// Pattern 3: water-light warped diagonal moire in normalized logical space.
+// P3-S2 is deliberately kept light: it is primarily x + registered warp.
 module pattern_diagonal_moire (
-    input  wire        clk,
-    input  wire        logical_valid,
-    input  wire [9:0]  logical_x,
-    input  wire [9:0]  logical_y,
-    input  wire [8:0]  frame_phase,
-    output reg  [23:0] rgb888
+    input  wire               clk,
+    input  wire               logical_valid,
+    input  wire signed [15:0] logical_x,
+    input  wire signed [15:0] logical_y,
+    input  wire [23:0]        logical_time,
+    output reg  [23:0]        rgb888
 );
 
-    // ------------------------------------------------------------------
-    // P3-S1: temporal triangle + spatial warp amount.
-    // This intentionally absorbs the heavy pre-warp operations that were
-    // previously concentrated in P3-S2.
-    // ------------------------------------------------------------------
-    wire [9:0] frame_tri_ext_comb = frame_phase[8] ?
-        (10'd512 - {1'b0, frame_phase}) : {1'b0, frame_phase};
-    wire [8:0] frame_tri_comb = frame_tri_ext_comb[8:0];
-    wire [7:0] warp_time_comb = frame_tri_comb[8:1];
-
-    wire [8:0] warp_r_comb = logical_y[8:0] + {1'b0, warp_time_comb};
-    wire [8:0] warp_tri_comb = warp_r_comb[8] ?
-        (10'd512 - {1'b0, warp_r_comb}) : warp_r_comb;
-    wire signed [9:0] warp_centered_comb =
-        $signed({1'b0, warp_tri_comb}) - 10'sd128;
-    wire signed [9:0] warp_comb = warp_centered_comb >>> 2;
+    // S1: time-driven warp triangle. Period is 1.0 logical unit in y.
+    wire [11:0] time_offset = logical_time[14:3];
+    wire signed [16:0] warp_arg = $signed(logical_y) + $signed({5'd0, time_offset});
+    wire [11:0] warp_phase = warp_arg[11:0];
+    wire [10:0] warp_tri = warp_phase[11] ? ~warp_phase[10:0] : warp_phase[10:0];
+    wire signed [11:0] warp_centered = $signed({1'b0, warp_tri}) - 12'sd1024;
+    wire signed [11:0] warp_amount = warp_centered >>> 1; // about +/-0.125
 
     reg               valid_s1;
-    reg [9:0]         x_s1;
-    reg [9:0]         y_s1;
-    reg [8:0]         phase_s1;
-    reg [7:0]         warp_time_s1;
-    reg signed [9:0]  warp_s1;
+    reg signed [15:0] x_s1, y_s1;
+    reg signed [11:0] warp_s1;
+    reg [2:0]         color_phase_s1;
 
     always @(posedge clk) begin
-        valid_s1     <= logical_valid;
-        x_s1         <= logical_x;
-        y_s1         <= logical_y;
-        phase_s1     <= frame_phase;
-        warp_time_s1 <= warp_time_comb;
-        warp_s1      <= warp_comb;
+        valid_s1       <= logical_valid;
+        x_s1           <= logical_x;
+        y_s1           <= logical_y;
+        warp_s1        <= warp_amount;
+        color_phase_s1 <= logical_time[14:12];
     end
 
-    // ------------------------------------------------------------------
-    // P3-S2: warped x coordinate only. This is the path shortened in v0.41.
-    // ------------------------------------------------------------------
-    wire signed [11:0] x_warped_comb =
-        $signed({2'b00, x_s1}) + {{2{warp_s1[9]}}, warp_s1};
+    // S2: critical-path-conscious lightweight x + warp stage.
+    wire signed [16:0] x_warp_comb = $signed(x_s1) + $signed(warp_s1);
 
     reg               valid_s2;
-    reg signed [11:0] x_warped_s2;
-    reg [9:0]         y_s2;
-    reg [8:0]         phase_s2;
-    reg [7:0]         warp_time_s2;
+    reg signed [16:0] x_warp_s2;
+    reg signed [15:0] y_s2;
+    reg [2:0]         color_phase_s2;
 
     always @(posedge clk) begin
-        valid_s2     <= valid_s1;
-        x_warped_s2  <= x_warped_comb;
-        y_s2         <= y_s1;
-        phase_s2     <= phase_s1;
-        warp_time_s2 <= warp_time_s1;
+        valid_s2       <= valid_s1;
+        x_warp_s2      <= x_warp_comb;
+        y_s2           <= y_s1;
+        color_phase_s2 <= color_phase_s1;
     end
 
-    // ------------------------------------------------------------------
-    // P3-S3: stripe family / background classification.
-    // ------------------------------------------------------------------
-    wire signed [12:0] a_full = {{1{x_warped_s2[11]}}, x_warped_s2} -
-                                  $signed({3'b000, y_s2}) +
-                                  $signed({4'b0000, phase_s2});
-    wire signed [12:0] b_full = {{1{x_warped_s2[11]}}, x_warped_s2} +
-                                  $signed({3'b000, y_s2}) -
-                                  $signed({4'b0000, phase_s2});
-    wire [6:0] a_mod = a_full[6:0];
-    wire [6:0] b_mod = b_full[6:0];
-    wire [6:0] da = a_mod[6] ? (8'd128 - {1'b0, a_mod}) : a_mod;
-    wire [6:0] db = b_mod[6] ? (8'd128 - {1'b0, b_mod}) : b_mod;
-
-    wire signed [12:0] bg_full = {{1{x_warped_s2[11]}}, x_warped_s2} -
-                                   $signed({3'b000, y_s2}) +
-                                   $signed({5'b00000, warp_time_s2});
+    // S3: two opposite diagonal phase families, 0.5-unit wavelength.
+    wire signed [17:0] diag_a = $signed(x_warp_s2) - $signed(y_s2);
+    wire signed [17:0] diag_b = $signed(x_warp_s2) + $signed(y_s2);
+    wire [10:0] phase_a = diag_a[10:0];
+    wire [10:0] phase_b = diag_b[10:0];
+    wire hit_a = (phase_a < 11'd160);
+    wire hit_b = (phase_b < 11'd160);
 
     reg       valid_s3;
-    reg       ma_s3;
-    reg       mb_s3;
-    reg [1:0] bg_index_s3;
+    reg       hit_a_s3, hit_b_s3;
+    reg [2:0] color_a_s3, color_b_s3;
+    reg [1:0] bg_s3;
 
     always @(posedge clk) begin
-        valid_s3    <= valid_s2;
-        ma_s3       <= (da < 7'd10);
-        mb_s3       <= (db < 7'd10);
-        bg_index_s3 <= bg_full[8:7];
+        valid_s3   <= valid_s2;
+        hit_a_s3   <= hit_a;
+        hit_b_s3   <= hit_b;
+        color_a_s3 <= color_phase_s2;
+        color_b_s3 <= color_phase_s2 + 3'd3;
+        bg_s3      <= x_warp_s2[12:11] ^ y_s2[12:11];
     end
 
-    function [23:0] bg3_color;
-        input [1:0] index;
+    function [23:0] vivid8;
+        input [2:0] index;
         begin
             case (index)
-                2'd0: bg3_color = 24'h041C24;
-                2'd1: bg3_color = 24'h091638;
-                2'd2: bg3_color = 24'h210D32;
-                default: bg3_color = 24'h32101E;
+                3'd0: vivid8 = 24'h00D9C7;
+                3'd1: vivid8 = 24'h2F6BFF;
+                3'd2: vivid8 = 24'h9B4DFF;
+                3'd3: vivid8 = 24'hFF3D88;
+                3'd4: vivid8 = 24'hFFAE2B;
+                3'd5: vivid8 = 24'h42D65A;
+                3'd6: vivid8 = 24'h00BDEB;
+                default: vivid8 = 24'hE45CFF;
             endcase
         end
     endfunction
 
-    // P3-S4: palette selection / output register.
+    function [23:0] dark4;
+        input [1:0] index;
+        begin
+            case (index)
+                2'd0: dark4 = 24'h041C24;
+                2'd1: dark4 = 24'h091638;
+                2'd2: dark4 = 24'h210D32;
+                default: dark4 = 24'h32101E;
+            endcase
+        end
+    endfunction
+
+    // S4: palette.
     always @(posedge clk) begin
         if (!valid_s3)
             rgb888 <= 24'h000000;
-        else if (ma_s3 && mb_s3)
-            rgb888 <= 24'hFF3D88;
-        else if (ma_s3)
-            rgb888 <= 24'h00D9C7;
-        else if (mb_s3)
-            rgb888 <= 24'h2F6BFF;
+        else if (hit_a_s3 && hit_b_s3)
+            rgb888 <= 24'hF2F6FF;
+        else if (hit_a_s3)
+            rgb888 <= vivid8(color_a_s3);
+        else if (hit_b_s3)
+            rgb888 <= vivid8(color_b_s3);
         else
-            rgb888 <= bg3_color(bg_index_s3);
+            rgb888 <= dark4(bg_s3);
     end
 
 endmodule

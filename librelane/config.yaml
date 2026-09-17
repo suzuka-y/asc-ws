@@ -33,11 +33,11 @@ VERILOG_FILES:
 - dir::../src/chip_top.sv
 - dir::../src/chip_core.sv
 - dir::../src/asc/asc_core.v
-- dir::../src/asc/debug_signal_gen.v
 - dir::../src/asc/display_space.v
 - dir::../src/asc/dpi_output.v
 - dir::../src/asc/fade_level_decoder.v
 - dir::../src/asc/fade_scaler.v
+- dir::../src/asc/logical_time_controller.v
 - dir::../src/asc/pattern_angular_pinwheel.v
 - dir::../src/asc/pattern_broad_wave_bands.v
 - dir::../src/asc/pattern_diagonal_moire.v
@@ -46,12 +46,12 @@ VERILOG_FILES:
 - dir::../src/asc/pattern_isometric_cubes.v
 - dir::../src/asc/pattern_manhattan_ripple.v
 - dir::../src/asc/pattern_mixer.v
-- dir::../src/asc/pattern_phase_controller.v
 - dir::../src/asc/pattern_pulse_columns.v
 - dir::../src/asc/pattern_truchet_lines.v
 - dir::../src/asc/reset_synchronizer.v
 - dir::../src/asc/scene_controller.v
 - dir::../src/asc/timing_generator.v
+
 
 # Enable plugin for better SystemVerilog support
 # USE_SLANG: True
@@ -84,7 +84,7 @@ IGNORE_DISCONNECTED_MODULES:
 # Clock
 CLOCK_PORT: clk_PAD
 CLOCK_NET: clk_pad/Y
-CLOCK_PERIOD: 30.3030303 # 33 MHz
+CLOCK_PERIOD: 13.468013468 # 74.25 MHz (1280x720p60 pixel clock)
 
 # Overfix hold violations
 PL_RESIZER_HOLD_SLACK_MARGIN: 0.35
@@ -96,15 +96,15 @@ PL_TARGET_DENSITY_PCT: 35
 GRT_ALLOW_CONGESTION: true
 
 # Repair max-slew / max-cap violations after global routing.
-# v0.41 already closes setup/hold timing; this additional repair stage
-# targets the remaining post-route electrical violations using routed RC.
+# Keep post-route electrical repair enabled for the 74.25 MHz v0.42 target.
+# Re-evaluate margins after the first v0.42 STA/hardening run.
 RUN_POST_GRT_DESIGN_REPAIR: true
 GRT_DESIGN_REPAIR_MAX_SLEW_PCT: 20
 GRT_DESIGN_REPAIR_MAX_CAP_PCT: 20
 
 # Re-optimize setup/hold timing after global routing using routed RC.
-# The setup margin is raised above LibreLane's small default so the
-# resizer also attempts to recover margin from the current ~0.19 ns WNS.
+# Retain a setup-repair margin initially; tune from measured v0.42 STA rather
+# than carrying forward the previous 33 MHz slack assumption.
 RUN_POST_GRT_RESIZER_TIMING: true
 GRT_RESIZER_SETUP_SLACK_MARGIN: 0.5
 
