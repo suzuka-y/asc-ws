@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// ASC v0.41 reset synchronizer.
+// ASC v0.42 reset synchronizer.
 // External reset is asserted asynchronously and released synchronously.
 // rst_n_raw must not be distributed beyond this boundary.
 module reset_synchronizer (

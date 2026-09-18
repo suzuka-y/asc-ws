@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
-// ASC v0.41 fade-level decoder.
-// Decode is intentionally performed before the RGB fade stage so the
-// comparator chain is removed from the fade-scaling critical path.
+// ASC v0.43 10-second fade-level decoder.
+// Levels 0..7 last seven frames each at both scene edges; level 8 occupies
+// the center of the 600-frame scene.
 module fade_level_decoder (
     input  wire [9:0] scene_frame_count,
     output reg  [3:0] fade_level

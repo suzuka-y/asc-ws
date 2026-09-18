@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // Nine-level, shift/add-only fade scaler.
-// ASC v0.41 timing contract: exactly 1 pixel-clock latency.
+// ASC v0.42 timing contract: exactly 1 pixel-clock latency.
 // fade_level is decoded earlier in the pipeline; this stage contains only
 // channel scaling plus the output register.
 module fade_scaler (

@@ -13,38 +13,32 @@ module chip_core #(
     inout  wire VSS,
     `endif
 
-    input  wire clk,       // clock
-    input  wire rst_n,     // external reset from wafer.space pad (active low)
+    input  wire clk,
+    input  wire rst_n,
 
-    input  wire [NUM_INPUT_PADS-1:0] input_in,   // Input value
-    output wire [NUM_INPUT_PADS-1:0] input_pu,   // Pull-up
-    output wire [NUM_INPUT_PADS-1:0] input_pd,   // Pull-down
+    input  wire [NUM_INPUT_PADS-1:0] input_in,
+    output wire [NUM_INPUT_PADS-1:0] input_pu,
+    output wire [NUM_INPUT_PADS-1:0] input_pd,
 
-    input  wire [NUM_BIDIR_PADS-1:0] bidir_in,   // Input value
-    output wire [NUM_BIDIR_PADS-1:0] bidir_out,  // Output value
-    output wire [NUM_BIDIR_PADS-1:0] bidir_oe,   // Output enable
-    output wire [NUM_BIDIR_PADS-1:0] bidir_cs,   // Input type (0=CMOS Buffer, 1=Schmitt Trigger)
-    output wire [NUM_BIDIR_PADS-1:0] bidir_sl,   // Slew rate (0=fast, 1=slow)
-    output wire [NUM_BIDIR_PADS-1:0] bidir_ie,   // Input enable
-    output wire [NUM_BIDIR_PADS-1:0] bidir_pu,   // Pull-up
-    output wire [NUM_BIDIR_PADS-1:0] bidir_pd,   // Pull-down
+    input  wire [NUM_BIDIR_PADS-1:0] bidir_in,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_out,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_oe,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_cs,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_sl,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_ie,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_pu,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_pd,
 
-    inout  wire [NUM_ANALOG_PADS-1:0] analog      // Analog
+    inout  wire [NUM_ANALOG_PADS-1:0] analog
 );
 
-    // ------------------------------------------------------------------
-    // ASC v0.41 core
-    //
-    // rst_n is the raw asynchronous reset at the wafer.space/ASC boundary.
-    // asc_core performs async-assert/sync-deassert synchronization internally
-    // and does not distribute rst_n_raw beyond its reset synchronizer.
-    // ------------------------------------------------------------------
+    // ASC v0.43: 1280x720p60 RGB888, 74.25 MHz, 14-clock external-output pipeline.
+    // rst_n is the raw asynchronous reset. asc_core synchronizes release.
     wire        asc_pclk;
     wire        asc_hsync;
     wire        asc_vsync;
     wire        asc_de;
     wire [23:0] asc_rgb;
-    wire [3:0]  asc_debug;
 
     asc_core i_asc_core (
         .clk       (clk),
@@ -53,29 +47,23 @@ module chip_core #(
         .hsync     (asc_hsync),
         .vsync     (asc_vsync),
         .de        (asc_de),
-        .rgb       (asc_rgb),
-        .debug     (asc_debug)
+        .rgb       (asc_rgb)
     );
 
-    // ASC does not use the dedicated general-purpose input pads.
     assign input_pu = '0;
     assign input_pd = '0;
 
-    // ------------------------------------------------------------------
-    // wafer.space bidirectional pad mapping
-    //
-    // bidir[0]     : PCLK
-    // bidir[1]     : HSYNC
-    // bidir[2]     : VSYNC
-    // bidir[3]     : DE
-    // bidir[27:4]  : RGB[23:0]
-    // bidir[31:28] : DEBUG[3:0]
-    // bidir[*:32]  : reserved / unused
-    // ------------------------------------------------------------------
-    wire [31:0] asc_output_bus;
+    // wafer.space bidirectional pad mapping:
+    //   bidir[0]     = PCLK
+    //   bidir[1]     = HSYNC
+    //   bidir[2]     = VSYNC
+    //   bidir[3]     = DE
+    //   bidir[27:4]  = RGB[23:0]
+    //   bidir[*:28]  = reserved / unused
+    localparam integer ASC_OUTPUT_WIDTH = 28;
+    wire [ASC_OUTPUT_WIDTH-1:0] asc_output_bus;
 
     assign asc_output_bus = {
-        asc_debug,
         asc_rgb,
         asc_de,
         asc_vsync,
@@ -84,24 +72,21 @@ module chip_core #(
     };
 
     assign bidir_out = {
-        {(NUM_BIDIR_PADS-32){1'b0}},
+        {(NUM_BIDIR_PADS-ASC_OUTPUT_WIDTH){1'b0}},
         asc_output_bus
     };
 
-    // Only the 32 ASC signals are driven. Remaining bidirectional pads are
-    // left in input mode and reserved for future use.
     assign bidir_oe = {
-        {(NUM_BIDIR_PADS-32){1'b0}},
-        32'hFFFF_FFFF
+        {(NUM_BIDIR_PADS-ASC_OUTPUT_WIDTH){1'b0}},
+        {ASC_OUTPUT_WIDTH{1'b1}}
     };
 
     assign bidir_cs = '0;
-    assign bidir_sl = '0;
+    assign bidir_sl = '0;  // fast output slew
     assign bidir_ie = ~bidir_oe;
     assign bidir_pu = '0;
     assign bidir_pd = '0;
 
-    // Consume currently unused digital inputs to avoid unused-signal noise.
     wire _unused;
     assign _unused = &{input_in, bidir_in};
 
